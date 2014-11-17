@@ -1,28 +1,9 @@
 <?php namespace SleepingOwl\Apist\Selectors;
 
+use InvalidArgumentException;
 use SleepingOwl\Apist\Methods\ApistMethod;
 use Symfony\Component\DomCrawler\Crawler;
 
-/**
- * Class ApistSelector
- *
- * @method ApistSelector text()
- * @method ApistSelector html()
- * @method ApistSelector attr($attribute)
- * @method ApistSelector each($closure)
- * @method ApistSelector eq($offset)
- * @method ApistSelector first()
- * @method ApistSelector last()
- * @method ApistSelector element()
- * @method ApistSelector trim()
- * @method ApistSelector intval()
- * @method ApistSelector floatval()
- * @method ApistSelector exists()
- * @method ApistSelector then($blueprint)
- * @method ApistSelector else($blueprint)
- * @method ApistSelector check($callback)
- * @method ApistSelector call($callback)
- */
 class ApistSelector
 {
 	/**
@@ -56,13 +37,7 @@ class ApistSelector
 			$rootNode = $method->getCrawler();
 		}
 		$result = $rootNode->filter($this->selector);
-		try
-		{
-			return $this->applyResultCallbackChain($result, $method);
-		} catch (\InvalidArgumentException $e)
-		{
-			return null;
-		}
+		return $this->applyResultCallbackChain($result, $method);
 	}
 
 	/**
@@ -88,11 +63,25 @@ class ApistSelector
 	{
 		if (empty($this->resultMethodChain))
 		{
-			return $node->text();
+			$this->addCallback('text');
 		}
+		/** @var ResultCallback[] $traceStack */
+		$traceStack = [];
 		foreach ($this->resultMethodChain as $resultCallback)
 		{
-			$node = $resultCallback->apply($node, $method);
+			try
+			{
+				$traceStack[] = $resultCallback;
+				$node = $resultCallback->apply($node, $method);
+			} catch (InvalidArgumentException $e)
+			{
+				if ($method->getResource()->isSuppressExceptions())
+				{
+					return null;
+				}
+				$message = $this->createExceptionMessage($e, $traceStack);
+				throw new InvalidArgumentException($message, 0, $e);
+			}
 		}
 		return $node;
 	}
@@ -102,11 +91,34 @@ class ApistSelector
 	 * @param $arguments
 	 * @return $this
 	 */
-	public function addCallback($name, $arguments)
+	public function addCallback($name, $arguments = [])
 	{
 		$resultCallback = new ResultCallback($name, $arguments);
 		$this->resultMethodChain[] = $resultCallback;
 		return $this;
 	}
 
-} 
+	/**
+	 * @param $e
+	 * @param ResultCallback[] $traceStack
+	 * @return string
+	 */
+	protected function createExceptionMessage(\Exception $e, $traceStack)
+	{
+		$message = "[ filter({$this->selector})";
+		foreach ($traceStack as $callback)
+		{
+			$message .= '->' . $callback->getMethodName() . '(';
+			try
+			{
+				$message .= implode(', ', $callback->getArguments());
+			} catch (\Exception $_e)
+			{
+			}
+			$message .= ')';
+		}
+		$message .= ' ] ' . $e->getMessage();
+		return $message;
+	}
+
+}

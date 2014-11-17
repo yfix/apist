@@ -47,6 +47,10 @@ class Parser
 			} else
 			{
 				# method
+				if ( ! isset($methodConfig['blueprint']))
+				{
+					$methodConfig['blueprint'] = null;
+				}
 				$methodConfig['blueprint'] = $this->parseBlueprint($methodConfig['blueprint']);
 				$this->methods[$method] = $methodConfig;
 			}
@@ -61,6 +65,10 @@ class Parser
 	{
 		$callback = function (&$value)
 		{
+			if (is_string($value))
+			{
+				$value = str_replace(':current', '*', $value);
+			}
 			if ($value[0] === ':')
 			{
 				# structure

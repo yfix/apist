@@ -42,6 +42,16 @@ class ResultCallback
 			if (is_bool($node)) $node = ! $node;
 			$this->methodName = 'then';
 		}
+
+		$filter = new ApistFilter($node, $method);
+		if (method_exists($filter, $this->methodName))
+		{
+			return call_user_func_array([
+					$filter,
+					$this->methodName
+				], $this->arguments);
+		}
+
 		if ($this->isResourceMethod($method))
 		{
 			return $this->callResourceMethod($method, $node);
@@ -133,6 +143,22 @@ class ResultCallback
 		$arguments = $this->arguments;
 		array_unshift($arguments, $node);
 		return call_user_func_array($this->methodName, $arguments);
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getMethodName()
+	{
+		return $this->methodName;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getArguments()
+	{
+		return $this->arguments;
 	}
 
 } 
